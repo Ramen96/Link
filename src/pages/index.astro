@@ -1,0 +1,57 @@
+---
+import "../styles/global.css";
+import { services, categories } from '../services';
+import ServiceCard from '../components/ServiceCard.astro';
+import ThemeScript from '../components/ThemeScript.astro';
+const grouped = Object.groupBy(services, (s) => s.category);
+const activeCategories = Object.keys(categories).filter(
+  (cat) => grouped[cat as keyof typeof grouped]?.length
+) as (keyof typeof categories)[];
+---
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>the404.page — Home</title>
+    <meta name="robots" content="noindex, nofollow" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  </head>
+  <body class="min-h-screen bg-zinc-50 font-sans text-zinc-900 antialiased transition-colors dark:bg-zinc-950 dark:text-zinc-100">
+    <div class="mx-auto max-w-4xl px-4 py-16">
+      <header class="mb-12 flex items-start justify-between">
+        <div>
+          <div class="mb-1 flex items-center gap-2">
+            <span class="h-2 w-2 rounded-full bg-emerald-400 dark:bg-emerald-500"></span>
+            <h1 class="font-mono text-sm font-medium tracking-tight text-zinc-900 dark:text-zinc-100">the404.page</h1>
+          </div>
+          <p class="pl-4 text-xs text-zinc-400 dark:text-zinc-600">Local network services</p>
+        </div>
+        <ThemeScript />
+      </header>
+      <main class="space-y-8">
+        {activeCategories.map((cat) => (
+          <section>
+            <h2 class="mb-3 text-xs font-medium uppercase tracking-widest text-zinc-300 dark:text-zinc-700">
+              {categories[cat]}
+            </h2>
+            <div class="space-y-2">
+              {grouped[cat]?.map((service) => (
+                <ServiceCard service={service} />
+              ))}
+            </div>
+          </section>
+        ))}
+      </main>
+      <footer class="mt-10 flex flex-col items-center gap-4">
+        <a href="/documentation" class="flex w-full items-center justify-center gap-2 rounded-xl border border-zinc-200 bg-white px-4 py-3 text-sm font-medium text-zinc-500 transition-all hover:border-zinc-300 hover:text-zinc-800 hover:shadow-sm dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400 dark:hover:border-zinc-700 dark:hover:text-zinc-200">
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+          Documentation
+        </a>
+        <span class="text-xs text-zinc-300 dark:text-zinc-700">{new Date().getFullYear()} · local network</span>
+      </footer>
+    </div>
+  </body>
+</html>
