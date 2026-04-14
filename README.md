@@ -1,4 +1,4 @@
-# the404.page
+# Local Link & Home Lab Docs
 
 A minimal local network dashboard. Displays and organizes self-hosted services running on your home network, with a documentation viewer for network notes.
 
