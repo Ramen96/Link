@@ -5,7 +5,11 @@ import react from '@astrojs/react';
 
 export default defineConfig({
   integrations: [react()],
+  output: 'static',
   vite: {
-    plugins: [tailwindcss()]
-  }
+    plugins: [tailwindcss()],
+    server: {
+      allowedHosts: 'link.the404.page',
+    },
+  },
 });

@@ -4,4 +4,4 @@ services:
     container_name: linktree
     restart: unless-stopped
     ports:
-      - "5000:80"
+      - "5173:80"
