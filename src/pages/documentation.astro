@@ -4,10 +4,8 @@ import { join } from 'path';
 import DocumentationViewer from '../components/DocumentationViewer';
 import ThemeScript from '../components/ThemeScript.astro';
 import '../styles/global.css';
-
 const content = readFileSync(join(process.cwd(), 'src/docs/network-notes.md'), 'utf-8');
 ---
-
 <!doctype html>
 <html lang="en">
   <head>
@@ -23,10 +21,8 @@ const content = readFileSync(join(process.cwd(), 'src/docs/network-notes.md'), '
       rel="stylesheet"
     />
   </head>
-
   <body class="min-h-screen bg-zinc-50 font-sans text-zinc-900 antialiased transition-colors dark:bg-zinc-950 dark:text-zinc-100">
-    <div class="mx-auto max-w-3xl px-4 py-8 sm:px-6 sm:py-12 md:px-8 md:py-16 lg:max-w-4xl xl:max-w-5xl">
-
+    <div class="mx-auto max-w-5xl px-4 py-8 sm:px-6 sm:py-12 md:px-8 md:py-16 xl:max-w-6xl">
       <header class="mb-8 flex flex-wrap items-center justify-between gap-3 sm:mb-10">
         <div class="flex items-center gap-3 sm:gap-4">
           <a
@@ -39,15 +35,11 @@ const content = readFileSync(join(process.cwd(), 'src/docs/network-notes.md'), '
           <span class="text-zinc-200 dark:text-zinc-800">/</span>
           <span class="font-mono text-sm text-zinc-900 dark:text-zinc-100">Documentation</span>
         </div>
-
         <ThemeScript />
-        
       </header>
-
       <main>
         <DocumentationViewer client:load content={content} />
       </main>
-
       <footer class="mt-12 text-center text-xs text-zinc-400 dark:text-zinc-700">
         {new Date().getFullYear()} · local network
       </footer>
