@@ -35,6 +35,13 @@ export const services: Service[] = [
     icon: 'folder-sync',
     category: 'services',
   },
+  {
+    name: 'Home Assistant',
+    description: 'Smart Home Automation',
+    url: 'https://ha.the404.page',
+    icon: 'house',
+    category: 'services',
+  },
 ];
 
 export const categories: Record<Service['category'], string> = {
