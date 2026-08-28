@@ -1,7 +1,7 @@
 import ReactMarkdown from 'react-markdown';
 import React from 'react';
 import remarkGfm from 'remark-gfm';
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 
 interface Props {
   content: string;
@@ -26,11 +26,19 @@ function extractHeadings(content: string): Heading[] {
   const lines = content.split('\n');
   const headings: Heading[] = [];
   for (const line of lines) {
-    const match = line.match(/^(#{1,3})\s+(.+)/);
+    // Only match h1 and h2 — h3 is too granular for sidebar nav
+    const match = line.match(/^(#{1,2})\s+(.+)/);
     if (match) {
       const level = match[1].length;
-      const text = match[2].trim();
-      headings.push({ id: slugify(text), text, level });
+      // Strip any inline markdown (bold, code, links) from heading text
+      const text = match[2]
+        .trim()
+        .replace(/\*\*(.+?)\*\*/g, '$1')
+        .replace(/`(.+?)`/g, '$1')
+        .replace(/\[(.+?)\]\(.+?\)/g, '$1');
+      if (text.length > 0) {
+        headings.push({ id: slugify(text), text, level });
+      }
     }
   }
   return headings;
@@ -68,6 +76,10 @@ function Sidebar({
   activeId,
   search,
   onSearch,
+  matchCount,
+  matchIndex,
+  onPrev,
+  onNext,
   isOpen,
   onClose,
 }: {
@@ -75,24 +87,28 @@ function Sidebar({
   activeId: string;
   search: string;
   onSearch: (v: string) => void;
+  matchCount: number;
+  matchIndex: number;
+  onPrev: () => void;
+  onNext: () => void;
   isOpen: boolean;
   onClose: () => void;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const filtered = search.trim()
-    ? headings.filter((h) =>
-      h.text.toLowerCase().includes(search.toLowerCase())
-    )
-    : headings;
-
-  const handleClick = (id: string) => {
-    const el = document.getElementById(id);
-    if (el) {
-      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  useEffect(() => {
+    if (isOpen && inputRef.current) {
+      setTimeout(() => inputRef.current?.focus(), 150);
     }
+  }, [isOpen]);
+
+  const handleHeadingClick = (id: string) => {
+    const el = document.getElementById(id);
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
     onClose();
   };
+
+  const hasSearch = search.trim().length > 0;
 
   return (
     <>
@@ -107,77 +123,98 @@ function Sidebar({
       {/* Sidebar panel */}
       <aside
         className={[
-          'fixed top-0 left-0 z-30 h-full w-64 border-r border-zinc-200 bg-zinc-50 transition-transform duration-200 dark:border-zinc-800 dark:bg-zinc-950',
-          'lg:sticky lg:top-8 lg:z-auto lg:h-auto lg:max-h-[calc(100vh-4rem)] lg:w-56 lg:shrink-0 lg:translate-x-0 lg:rounded-xl lg:border lg:bg-white lg:dark:bg-zinc-900',
-          isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0',
+          'fixed top-0 left-0 z-30 h-full w-72 border-r border-zinc-200 bg-white transition-transform duration-200 ease-in-out dark:border-zinc-800 dark:bg-zinc-950',
+          'lg:sticky lg:top-8 lg:z-auto lg:h-[calc(100vh-4rem)] lg:w-56 lg:shrink-0 lg:translate-x-0 lg:rounded-xl lg:border lg:border-zinc-200 lg:bg-white lg:dark:border-zinc-800 lg:dark:bg-zinc-900',
+          isOpen ? 'translate-x-0 shadow-xl' : '-translate-x-full lg:translate-x-0 lg:shadow-none',
         ].join(' ')}
       >
-        <div className="flex h-full flex-col overflow-hidden">
+        <div className="flex h-full flex-col">
+          {/* Mobile header */}
+          <div className="flex items-center justify-between px-3 pt-4 pb-1 lg:hidden">
+            <span className="font-mono text-xs font-medium text-zinc-500 dark:text-zinc-400">Contents</span>
+            <button
+              onClick={onClose}
+              className="rounded-md p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700 dark:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg>
+            </button>
+          </div>
+
           {/* Search */}
-          <div className="p-3 lg:p-3">
+          <div className="px-3 pt-3 pb-2">
             <div className="relative">
               <svg
                 className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-400 dark:text-zinc-600"
-                xmlns="http://www.w3.org/2000/svg"
-                width="13"
-                height="13"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
+                xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24"
+                fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
               >
                 <circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" />
               </svg>
               <input
                 ref={inputRef}
                 type="text"
-                placeholder="Search…"
+                placeholder="Search docs…"
                 value={search}
                 onChange={(e) => onSearch(e.target.value)}
-                className="w-full rounded-lg border border-zinc-200 bg-zinc-50 py-1.5 pl-7 pr-3 font-mono text-xs text-zinc-700 placeholder-zinc-400 outline-none transition-colors focus:border-zinc-400 focus:bg-white dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300 dark:placeholder-zinc-600 dark:focus:border-zinc-500 dark:focus:bg-zinc-800"
+                className="w-full rounded-lg border border-zinc-200 bg-zinc-50 py-1.5 pl-7 pr-7 font-mono text-xs text-zinc-700 placeholder-zinc-400 outline-none transition-colors focus:border-zinc-400 focus:bg-white dark:border-zinc-700 dark:bg-zinc-800/60 dark:text-zinc-300 dark:placeholder-zinc-600 dark:focus:border-zinc-500 dark:focus:bg-zinc-800"
               />
-              {search && (
+              {hasSearch && (
                 <button
                   onClick={() => onSearch('')}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600 dark:text-zinc-600 dark:hover:text-zinc-400"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 text-zinc-400 hover:text-zinc-600 dark:text-zinc-600 dark:hover:text-zinc-400"
+                  aria-label="Clear search"
                 >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg>
                 </button>
               )}
             </div>
+
+            {/* Match counter + prev/next — only while searching */}
+            {hasSearch && (
+              <div className="mt-2 flex items-center justify-between">
+                <span className="font-mono text-xs text-zinc-400 dark:text-zinc-600">
+                  {matchCount === 0 ? 'No matches' : `${matchIndex + 1} / ${matchCount}`}
+                </span>
+                <div className="flex items-center gap-0.5">
+                  <button
+                    onClick={onPrev}
+                    disabled={matchCount === 0}
+                    aria-label="Previous match"
+                    className="flex h-6 w-6 items-center justify-center rounded text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-700 disabled:cursor-not-allowed disabled:opacity-30 dark:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m18 15-6-6-6 6" /></svg>
+                  </button>
+                  <button
+                    onClick={onNext}
+                    disabled={matchCount === 0}
+                    aria-label="Next match"
+                    className="flex h-6 w-6 items-center justify-center rounded text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-700 disabled:cursor-not-allowed disabled:opacity-30 dark:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6" /></svg>
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
 
-          {/* Nav links */}
-          <nav className="flex-1 overflow-y-auto px-2 pb-4">
-            {filtered.length === 0 && (
-              <p className="px-2 py-3 text-xs text-zinc-400 dark:text-zinc-600">
-                No results for "{search}"
-              </p>
-            )}
+          <div className="mx-3 border-t border-zinc-100 dark:border-zinc-800" />
+
+          {/* Nav */}
+          <nav className="flex-1 overflow-y-auto px-2 py-2">
             <ul className="space-y-0.5">
-              {filtered.map((h) => (
+              {headings.map((h) => (
                 <li key={h.id}>
                   <button
-                    onClick={() => handleClick(h.id)}
+                    onClick={() => handleHeadingClick(h.id)}
                     className={[
                       'w-full rounded-md px-2 py-1.5 text-left text-xs transition-colors',
-                      h.level === 1
-                        ? 'font-medium'
-                        : h.level === 2
-                          ? 'pl-4'
-                          : 'pl-6',
+                      h.level === 1 ? 'font-medium' : 'pl-4',
                       activeId === h.id
                         ? 'bg-zinc-100 text-zinc-900 dark:bg-zinc-800 dark:text-zinc-100'
                         : 'text-zinc-500 hover:bg-zinc-100 hover:text-zinc-700 dark:text-zinc-500 dark:hover:bg-zinc-800/60 dark:hover:text-zinc-300',
                     ].join(' ')}
                   >
-                    {h.level >= 2 && (
-                      <span className="mr-1.5 text-zinc-300 dark:text-zinc-700">
-                        {h.level === 2 ? '–' : '·'}
-                      </span>
-                    )}
+                    {h.level === 2 && <span className="mr-1.5 text-zinc-300 dark:text-zinc-700">–</span>}
                     {h.text}
                   </button>
                 </li>
@@ -194,117 +231,175 @@ export default function DocumentationViewer({ content }: Props) {
   const [search, setSearch] = useState('');
   const [activeId, setActiveId] = useState('');
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const headings = extractHeadings(content);
+  const [matchIndex, setMatchIndex] = useState(0);
 
-  // Highlight search matches in content
-  const displayContent = search.trim() ? content : content;
+  const headings = useMemo(() => extractHeadings(content), [content]);
 
-  // Track active heading via IntersectionObserver
-  useEffect(() => {
-    const ids = headings.map((h) => h.id);
-    const observers: IntersectionObserver[] = [];
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        for (const entry of entries) {
-          if (entry.isIntersecting) {
-            setActiveId(entry.target.id);
-          }
-        }
-      },
-      { rootMargin: '-20% 0px -70% 0px', threshold: 0 }
-    );
-
-    ids.forEach((id) => {
-      const el = document.getElementById(id);
-      if (el) observer.observe(el);
-    });
-
-    return () => observer.disconnect();
-  }, [content]);
-
-  // Filter content to matching sections when searching
-  const filteredContent = useCallback(() => {
-    if (!search.trim()) return content;
+  // Split document into sections on h1/h2 boundaries
+  const sections = useMemo(() => {
     const lines = content.split('\n');
-    const results: string[] = [];
-    let inMatch = false;
-    let currentSection: string[] = [];
+    const result: { heading: string; body: string; id: string }[] = [];
+    let currentHeading = '';
+    let currentId = '';
+    let currentLines: string[] = [];
 
     const flush = () => {
-      if (inMatch && currentSection.length > 0) {
-        results.push(currentSection.join('\n'));
+      if (currentHeading || currentLines.length > 0) {
+        result.push({ heading: currentHeading, id: currentId, body: currentLines.join('\n') });
       }
-      currentSection = [];
-      inMatch = false;
+      currentLines = [];
     };
 
     for (const line of lines) {
-      const isHeading = /^#{1,3}\s/.test(line);
-      if (isHeading) {
+      const m = line.match(/^(#{1,2})\s+(.+)/);
+      if (m) {
         flush();
-        currentSection = [line];
-        inMatch = line.toLowerCase().includes(search.toLowerCase());
+        currentHeading = line;
+        currentId = slugify(m[2].trim().replace(/\*\*(.+?)\*\*/g, '$1').replace(/`(.+?)`/g, '$1'));
       } else {
-        if (!inMatch && line.toLowerCase().includes(search.toLowerCase())) {
-          inMatch = true;
-        }
-        currentSection.push(line);
+        currentLines.push(line);
       }
     }
     flush();
+    return result;
+  }, [content]);
 
-    return results.length > 0
-      ? results.join('\n\n---\n\n')
-      : `*No results for "${search}"*`;
-  }, [content, search]);
+  // Filter sections whose heading+body contain the query (case-insensitive)
+  const matchingSections = useMemo(() => {
+    if (!search.trim()) return sections;
+    const q = search.toLowerCase();
+    return sections.filter((s) =>
+      (s.heading + '\n' + s.body).toLowerCase().includes(q)
+    );
+  }, [sections, search]);
 
-  const renderedContent = filteredContent();
+  const matchCount = matchingSections.length;
+
+  // Build the markdown string to render — filtered when searching
+  const renderedContent = useMemo(() => {
+    if (!search.trim()) return content;
+    if (matchingSections.length === 0) return '';
+    return matchingSections
+      .map((s) => (s.heading ? s.heading + '\n' + s.body : s.body).trimEnd())
+      .join('\n\n');
+  }, [content, search, matchingSections]);
+
+  // Reset match index whenever query changes
+  useEffect(() => {
+    setMatchIndex(0);
+  }, [search]);
+
+  // Scroll to the nth match when arrows are clicked (after ReactMarkdown re-renders)
+  useEffect(() => {
+    if (!search.trim() || matchingSections.length === 0) return;
+    const id = matchingSections[matchIndex]?.id;
+    if (!id) return;
+    const t = setTimeout(() => {
+      const el = document.getElementById(id);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        setActiveId(id);
+      }
+    }, 50);
+    return () => clearTimeout(t);
+  }, [matchIndex, matchingSections, search]);
+
+  const handleSearch = (v: string) => {
+    setSearch(v);
+    setMatchIndex(0);
+  };
+
+  const handlePrev = () => setMatchIndex((i) => (i - 1 + matchCount) % matchCount);
+  const handleNext = () => setMatchIndex((i) => (i + 1) % matchCount);
+
+  // Scroll-spy — only when not searching
+  useEffect(() => {
+    if (search.trim()) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) setActiveId(entry.target.id);
+        }
+      },
+      { rootMargin: '-10% 0px -80% 0px', threshold: 0 }
+    );
+    headings.forEach(({ id }) => {
+      const el = document.getElementById(id);
+      if (el) observer.observe(el);
+    });
+    return () => observer.disconnect();
+  }, [content, search, headings]);
 
   const headingWithId = (level: number, children: React.ReactNode) => {
-    const text = typeof children === 'string'
-      ? children
-      : Array.isArray(children)
-        ? children.map((c) => (typeof c === 'string' ? c : '')).join('')
-        : '';
+    const text =
+      typeof children === 'string'
+        ? children
+        : Array.isArray(children)
+          ? children.map((c) => (typeof c === 'string' ? c : '')).join('')
+          : '';
     const id = slugify(text);
+    const isCurrentMatch =
+      search.trim() !== '' && matchingSections[matchIndex]?.id === id;
+    const isAnyMatch =
+      search.trim() !== '' && matchingSections.some((s) => s.id === id);
 
     if (level === 1)
       return (
-        <h1
-          id={id}
-          className="mb-4 mt-8 scroll-mt-6 font-mono text-xl font-medium tracking-tight text-zinc-900 first:mt-0 sm:mb-6 sm:mt-10 sm:text-2xl dark:text-zinc-100"
-        >
-          {children}
+        <h1 id={id} className="mb-4 mt-8 scroll-mt-8 font-mono text-xl font-medium tracking-tight text-zinc-900 first:mt-0 sm:mb-6 sm:mt-10 sm:text-2xl dark:text-zinc-100">
+          {isAnyMatch ? (
+            <span className={[
+              'inline border-b-2 pb-0.5',
+              isCurrentMatch
+                ? 'border-zinc-400 dark:border-zinc-400'
+                : 'border-zinc-200 dark:border-zinc-700',
+            ].join(' ')}>
+              {children}
+            </span>
+          ) : children}
         </h1>
       );
     if (level === 2)
       return (
-        <h2
-          id={id}
-          className="mb-3 mt-8 scroll-mt-6 border-t border-zinc-100 pt-6 font-mono text-sm font-medium text-zinc-900 sm:mb-4 sm:mt-10 sm:pt-8 sm:text-base dark:border-zinc-800/60 dark:text-zinc-100"
-        >
-          {children}
+        <h2 id={id} className="mb-3 mt-8 scroll-mt-8 border-t border-zinc-100 pt-6 font-mono text-sm font-medium text-zinc-900 sm:mb-4 sm:mt-10 sm:pt-8 sm:text-base dark:border-zinc-800/60 dark:text-zinc-100">
+          {isAnyMatch ? (
+            <span className={[
+              'inline border-b-2 pb-0.5',
+              isCurrentMatch
+                ? 'border-zinc-400 dark:border-zinc-400'
+                : 'border-zinc-200 dark:border-zinc-700',
+            ].join(' ')}>
+              {children}
+            </span>
+          ) : children}
         </h2>
       );
     return (
-      <h3
-        id={id}
-        className="mb-2 mt-5 scroll-mt-6 text-xs font-medium uppercase tracking-widest text-zinc-400 sm:mb-3 sm:mt-6 dark:text-zinc-600"
-      >
-        {children}
+      <h3 id={id} className="mb-2 mt-5 scroll-mt-8 text-xs font-medium uppercase tracking-widest text-zinc-400 sm:mb-3 sm:mt-6 dark:text-zinc-600">
+        {isAnyMatch ? (
+          <span className={[
+            'inline border-b-2 pb-0.5',
+            isCurrentMatch
+              ? 'border-zinc-400 dark:border-zinc-400'
+              : 'border-zinc-200 dark:border-zinc-700',
+          ].join(' ')}>
+            {children}
+          </span>
+        ) : children}
       </h3>
     );
   };
 
   return (
-    <div className="relative flex gap-8 lg:gap-10">
-      {/* Mobile sidebar toggle */}
+    <div className="flex items-start gap-6 lg:gap-8">
+      {/* Mobile FAB */}
       <button
         onClick={() => setSidebarOpen(true)}
-        className="fixed bottom-6 right-6 z-10 flex items-center gap-1.5 rounded-full border border-zinc-200 bg-white px-3 py-2 text-xs font-medium text-zinc-600 shadow-sm transition-all hover:border-zinc-300 hover:text-zinc-900 lg:hidden dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-200"
+        className="fixed bottom-6 right-4 z-10 flex items-center gap-1.5 rounded-full border border-zinc-200 bg-white px-3 py-2 text-xs font-medium text-zinc-600 shadow-sm transition-all hover:border-zinc-300 hover:text-zinc-900 lg:hidden dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-400 dark:hover:border-zinc-600 dark:hover:text-zinc-200"
+        aria-label="Open table of contents"
       >
-        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="3" x2="21" y1="6" y2="6" /><line x1="3" x2="21" y1="12" y2="12" /><line x1="3" x2="15" y1="18" y2="18" /></svg>
+        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <line x1="3" x2="21" y1="6" y2="6" /><line x1="3" x2="21" y1="12" y2="12" /><line x1="3" x2="15" y1="18" y2="18" />
+        </svg>
         Contents
       </button>
 
@@ -312,13 +407,22 @@ export default function DocumentationViewer({ content }: Props) {
         headings={headings}
         activeId={activeId}
         search={search}
-        onSearch={setSearch}
+        onSearch={handleSearch}
+        matchCount={matchCount}
+        matchIndex={matchIndex}
+        onPrev={handlePrev}
+        onNext={handleNext}
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
       />
 
       {/* Main content */}
       <article className="min-w-0 flex-1 pb-8 sm:pb-12">
+        {search.trim() && matchCount === 0 && (
+          <p className="py-12 text-center font-mono text-sm text-zinc-400 dark:text-zinc-600">
+            No results for &ldquo;{search}&rdquo;
+          </p>
+        )}
         <ReactMarkdown
           remarkPlugins={[remarkGfm]}
           components={{
@@ -383,7 +487,7 @@ export default function DocumentationViewer({ content }: Props) {
             ),
             table: ({ children }) => (
               <div className="-mx-4 mb-5 overflow-x-auto sm:mx-0 sm:mb-6 sm:rounded-xl sm:border sm:border-zinc-200 dark:sm:border-zinc-800">
-                <table className="w-full min-w-120">{children}</table>
+                <table className="w-full min-w-[30rem]">{children}</table>
               </div>
             ),
             thead: ({ children }) => (
